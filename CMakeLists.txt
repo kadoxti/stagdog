@@ -16,9 +16,6 @@ add_executable(${PROJECT_NAME}_tests ${SOURCES} ${TEST_SOURCES})
 target_include_directories(${PROJECT_NAME}_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/)
 target_compile_options(${PROJECT_NAME}_tests PUBLIC -std=c++17 -v)
 
-add_custom_target(test_runner 
-    COMMAND ${PROJECT_NAME}_tests 
-    DEPENDS ${PROJECT_NAME}_tests)
 
 enable_testing()
-add_test(NAME UnitTests COMMAND ${PROJECT_NAME}_tests)
+add_test(NAME Sha1Tests COMMAND ${PROJECT_NAME}_tests [sha1])

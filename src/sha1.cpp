@@ -2,6 +2,7 @@
 // This code is licensed under MIT license (see LICENSE file for details)
 
 #include "sha1.h"
+#include <string>
 
 namespace stagdog::sha1
 {
@@ -12,12 +13,47 @@ uint32_t circular_left_shift(uint32_t data, std::size_t n)
     return data << n | data >> (32 - n);
 }
 
+byte_array process_last_chunk(const char *data, std::size_t length)
+{
+    if (data == nullptr) {
+        throw std::invalid_argument("process_last_chunk: nullptr passed");
+    }
+
+    if (length == 0 || length > 512) {
+        throw std::invalid_argument("process_last_chunk: " + std::to_string(length) + " is invalid length");
+    }
+    
+    const std::size_t reserved_size = 64 + 1;
+    const std::size_t chunk_default_size = 512;
+    const std::size_t last_chunk_size = length % chunk_default_size;
+    const std::size_t chunk_count = length / chunk_default_size;
+
+    byte_array array;
+
+    if (chunk_default_size >= reserved_size + last_chunk_size) {
+        array.data = std::make_unique<char[]>(512);
+        array.length = 512;
+    } else {
+        array.data = std::make_unique<char[]>(1024);
+        array.length = 1024;
+    }
+
+    auto begin = data + chunk_default_size * chunk_count;
+
+    std::copy(begin, begin + last_chunk_size, array.data.get());
+    array.data.get()[length] = 1;
+    std::fill(array.data.get() + length + 1, array.data.get() + array.length, 0);
+    reinterpret_cast<uint64_t*>(array.data.get())[array.length / 8 - 1] = length;
+
+    return array;
+}
+
 bool encrypter::chunk_fits(std::size_t length) const
 {
     return true;
 }
 
-data encrypter::encrypt(char* data, std::size_t length) const
+byte_array encrypter::encrypt(char* data, std::size_t length) const
 {
     // auto raw = reinterpret_cast<unsigned char*>(data->data());
     

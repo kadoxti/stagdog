@@ -61,6 +61,20 @@
         "streambuf": "cpp",
         "string": "cpp",
         "system_error": "cpp",
-        "unordered_map": "cpp"
+        "unordered_map": "cpp",
+        "filesystem": "cpp",
+        "iomanip": "cpp",
+        "regex": "cpp",
+        "thread": "cpp",
+        "__tree": "cpp",
+        "deque": "cpp",
+        "fstream": "cpp",
+        "future": "cpp",
+        "map": "cpp",
+        "numeric": "cpp",
+        "random": "cpp",
+        "set": "cpp",
+        "stack": "cpp",
+        "variant": "cpp"
     }
 }

@@ -15,7 +15,7 @@ namespace stagdog::sha1
 class encrypter: public IEncrypter
 {
 public:
-    data encrypt(char* data, std::size_t length) const override;
+    byte_array encrypt(char* data, std::size_t length) const override;
     
 private:
     std::array<uint32_t, 5> process_chunk(const std::array<uint32_t, 16> &chunk, const std::array<uint32_t, 5> &base) const;
@@ -32,5 +32,6 @@ private:
 };
 
 uint32_t circular_left_shift(uint32_t data, std::size_t n);
+byte_array process_last_chunk(const char *data, std::size_t length);
 
 } // namespace stagdog::sha1

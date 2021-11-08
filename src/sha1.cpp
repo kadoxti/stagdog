@@ -13,119 +13,154 @@ uint32_t circular_left_shift(uint32_t data, std::size_t n)
     return data << n | data >> (32 - n);
 }
 
+bool isLittleEndian()
+{
+    short int number = 0x1;
+    char *numPtr = (char*)&number;
+    return (numPtr[0] == 1);
+}
+
 byte_array process_last_chunk(const char *data, std::size_t length)
 {
+    uint64_t bit_count = length * 8;
+
     if (data == nullptr) {
         throw std::invalid_argument("process_last_chunk: nullptr passed");
     }
-
-    if (length == 0 || length > 512) {
-        throw std::invalid_argument("process_last_chunk: " + std::to_string(length) + " is invalid length");
-    }
     
-    const std::size_t reserved_size = 64 + 1;
-    const std::size_t chunk_default_size = 512;
-    const std::size_t last_chunk_size = length % chunk_default_size;
-    const std::size_t chunk_count = length / chunk_default_size;
+    const std::size_t last_chunk_byte_size = length % (CHUNK_BIT_SIZE / 8);
+    const std::size_t chunk_count = bit_count / CHUNK_BIT_SIZE;
 
     byte_array array;
 
-    if (chunk_default_size >= reserved_size + last_chunk_size) {
-        array.data = std::make_unique<char[]>(512);
-        array.length = 512;
+    if (CHUNK_BIT_SIZE >= RESERVED_BIT_SIZE + last_chunk_byte_size * 8) {
+        array.length = CHUNK_BIT_SIZE / 8; 
     } else {
-        array.data = std::make_unique<char[]>(1024);
-        array.length = 1024;
+        array.length = CHUNK_BIT_SIZE * 2 / 8;
     }
+    array.data = std::make_unique<char[]>(array.length);
 
-    auto begin = data + chunk_default_size * chunk_count;
+    auto begin = data + CHUNK_BIT_SIZE / 8 * chunk_count;
 
-    std::copy(begin, begin + last_chunk_size, array.data.get());
-    array.data.get()[length] = 1;
-    std::fill(array.data.get() + length + 1, array.data.get() + array.length, 0);
-    reinterpret_cast<uint64_t*>(array.data.get())[array.length / 8 - 1] = length;
+    std::copy(begin, begin + last_chunk_byte_size, array.data.get());
+    array.data.get()[last_chunk_byte_size] = 0b10000000;
+    auto beg = array.data.get() + last_chunk_byte_size + 1;
+    auto end = array.data.get() + array.length;
+    std::fill(array.data.get() + last_chunk_byte_size + 1, array.data.get() + array.length, 0);
 
+    if (isLittleEndian()) {
+        std::copy(reinterpret_cast<char*>(&bit_count), reinterpret_cast<char*>(&bit_count) + 8, std::reverse_iterator(array.data.get() + array.length));
+    } else {
+        *reinterpret_cast<uint64_t*>(array.data.get() + array.length - 8) = bit_count;
+    }  
+    
     return array;
 }
 
-bool encrypter::chunk_fits(std::size_t length) const
+uint32_t f (std::size_t index, uint32_t B, uint32_t C, uint32_t D)
 {
-    return true;
+    if (index < 20) {
+        return (B & C) | ((~B) & D);
+    } else if (index < 40) {
+        return B ^ C ^ D;
+    } else if (index < 60) {
+        return (B & C) | (B & D) | (C & D);
+    } else if (index < 80) {
+        return B ^ C ^ D;
+    }
+
+    throw std::invalid_argument("f function invalid index: " + std::to_string(index));
 }
 
-byte_array encrypter::encrypt(char* data, std::size_t length) const
+uint32_t get_K_constant(std::size_t index)
 {
-    // auto raw = reinterpret_cast<unsigned char*>(data->data());
-    
-    // std::array<uint32_t, 16> chunk;
+    if (index < 20) {
+        return 0x5A827999;
+    } else if (index < 40) {
+        return 0x6ED9EBA1;
+    } else if (index < 60) {
+        return 0x8F1BBCDC;
+    } else if (index < 80) {
+        return 0xCA62C1D6;
+    }
 
-    // std::size_t chunk_count = length / 64;
-    // std::size_t position = 0;
-
-    // std::array<uint32_t, 5> base = _base;
-
-    // while (chunk_count > 0) {
-    //     for (std::size_t i = 0; i < chunk.size(); ++i) {
-    //         chunk[i] = reinterpret_cast<uint32_t*>(data)[position];
-    //         position += 4;
-    //     }
-    //     auto temp_base = process_chunk(chunk, base);
-    //     for (std::size_t i = 0; i < base.size(); ++i) {
-    //         base[i] += temp_base[i];
-    //     }
-
-    //     --chunk_count;
-    // }
-    
-    // std::vector<std::byte> encrypted_data;
-    // encrypted_data.resize(20);
-
-    // for (int i = 0; i < 20; ++i) {
-    //     encrypted_data[i] = reinterpret_cast<std::byte*>(base.data())[i];
-    // }
-
-    // return encrypted_data;
-    return {};
+    throw std::invalid_argument("K constant function invalid index: " + std::to_string(index));
 }
 
-std::array<uint32_t, 5> encrypter::process_chunk(const std::array<uint32_t, 16> &chunk, const std::array<uint32_t, 5> &base) const
+byte_array encrypter::encrypt(const char* data, std::size_t length) const
 {
-    // auto [a, b, c, d, e] = base;
+    const char* chunk = data;
 
-    // std::array<uint32_t, 80> bigger_chunk;
-    // for (int i = 0; i < bigger_chunk.size(); ++i) {
-    //     if (i <= chunk.size()) {
-    //         bigger_chunk[i] = chunk[i];
-    //     }
+    std::size_t chunk_count = length * 8 / CHUNK_BIT_SIZE;
+    std::size_t position = 0;
 
-    //     bigger_chunk[i] = (chunk[i - 3] ^ chunk[i - 8] ^ chunk[i - 14] ^ chunk[i - 16]) << 1;
+    std::array<uint32_t, 5> H {
+        0x67452301,
+        0xEFCDAB89,
+        0x98BADCFE,
+        0x10325476,
+        0xC3D2E1F0
+    };
+    
+    while (chunk_count > 0) {
+        auto temp_base = encrypt_chunk(chunk + position, H);
+        for (std::size_t i = 0; i < H.size(); ++i) {
+            H[i] += temp_base[i];
+        }
+        position += CHUNK_BIT_SIZE / 8;
+        --chunk_count;
+    }
 
+    auto last_chunk = process_last_chunk(data, length);
 
-    //     uint32_t temp = (a << 1) + e + bigger_chunk[i];
+    for (int i = 0; i < last_chunk.length * 8 / CHUNK_BIT_SIZE; ++i) {
+        auto temp_base = encrypt_chunk(last_chunk.data.get() + i * CHUNK_BIT_SIZE / 8, H);
+        for (std::size_t i = 0; i < H.size(); ++i) {
+            H[i] += temp_base[i];
+        }
+    }
+    
+    byte_array encrypted_data;
+    encrypted_data.data = std::make_unique<char[]>(20);
+    encrypted_data.length = 20;
 
-    //     if (i <= 19) {
-    //         temp += 0x5A827999;
-    //         temp += (b & c) | ((!b) & d);
-    //     } else if (i <= 39) {
-    //         temp += 0x6ED9EBA1;
-    //         temp += b ^ c ^ d;
-    //     } else if (i <= 59) {
-    //         temp += 0x8F1BBCD;
-    //         temp += (b & c) | (b & d) | (c & d);
-    //     } else if (i <= 79) {
-    //         temp += 0xCA62C1D6;
-    //         temp += b ^ c ^ d;
-    //     }
+    if (isLittleEndian()) {
+        for (int i = 0; i < H.size(); ++i) {
+            std::copy(reinterpret_cast<char *>(H.data()) + i * 4, reinterpret_cast<char *>(H.data()) + i * 4 + 4, std::reverse_iterator(encrypted_data.data.get() + i * 4 + 4));
+        }
+    } else {
+        std::copy(reinterpret_cast<char *>(H.data()), reinterpret_cast<char *>(H.data()) + 20, encrypted_data.data.get());
+    }
 
-    //     e = d;
-    //     d = c;
-    //     c = b << 30;
-    //     b = a;
-    //     a = temp;
-    // }
+    return encrypted_data;
+}
 
-    // return {a, b, c, d, e};
-    return {};
+std::array<uint32_t, 5> encrypter::encrypt_chunk(const char* chunk, const std::array<uint32_t, 5> &H) const
+{
+    auto [a, b, c, d, e] = H;
+
+    std::array<uint32_t, 80> bigger_chunk;
+    for (int i = 0; i < bigger_chunk.size(); ++i) {
+        if (i < 16) {
+            if (isLittleEndian()) {
+                std::copy(&chunk[i * 4], &chunk[i * 4] + 4, std::reverse_iterator( reinterpret_cast<char*>(&bigger_chunk[i]) + 4));
+            } else {
+                bigger_chunk[i] = *reinterpret_cast<const uint32_t*>(chunk + i * 4);
+            }
+        } else {
+            bigger_chunk[i] = circular_left_shift( (bigger_chunk[i - 3] ^ bigger_chunk[i - 8] ^ bigger_chunk[i - 14] ^ bigger_chunk[i - 16]), 1 );
+        }
+
+        uint32_t temp = circular_left_shift(a, 5) + f(i, b, c, d) + e + bigger_chunk[i] + get_K_constant(i);
+
+        e = d;
+        d = c;
+        c = circular_left_shift(b, 30);
+        b = a;
+        a = temp;
+    }
+
+    return {a, b, c, d, e};
 }
 
 } // namespace stagdog::sha1

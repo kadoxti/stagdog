@@ -18,13 +18,13 @@ struct byte_array
 class IEncrypter
 {
 public:
-    virtual byte_array encrypt(char* data, std::size_t length) const = 0;
+    virtual byte_array encrypt(const char* data, std::size_t length) const = 0;
 };
 
 class IDecrypter
 {
 public:
-    virtual byte_array decrypt(char* data, std::size_t length) const = 0;
+    virtual byte_array decrypt(const char* data, std::size_t length) const = 0;
 };
 
 }// namespace stagdog

@@ -12,16 +12,17 @@
 namespace stagdog::sha1
 {
 
+const std::size_t RESERVED_BIT_SIZE = 64 + 1;
+const std::size_t CHUNK_BIT_SIZE = 512;
+
 class encrypter: public IEncrypter
 {
 public:
-    byte_array encrypt(char* data, std::size_t length) const override;
+    byte_array encrypt(const char* data, std::size_t length) const override;
     
 private:
-    std::array<uint32_t, 5> process_chunk(const std::array<uint32_t, 16> &chunk, const std::array<uint32_t, 5> &base) const;
+    std::array<uint32_t, 5> encrypt_chunk(const char* chunk, const std::array<uint32_t, 5> &H) const;
     
-    bool chunk_fits(std::size_t length) const;
-
     std::array<uint32_t, 5> _base{
         0x67452301,
         0xEFCDAB89,
@@ -32,6 +33,12 @@ private:
 };
 
 uint32_t circular_left_shift(uint32_t data, std::size_t n);
+
+// data - full data, length - full data length
 byte_array process_last_chunk(const char *data, std::size_t length);
+
+uint32_t f (std::size_t index, uint32_t B, uint32_t C, uint32_t D);
+
+uint32_t get_K_constant(std::size_t index);
 
 } // namespace stagdog::sha1

@@ -16,19 +16,19 @@ uint32_t circular_left_shift(uint32_t data, std::size_t n)
 bool isLittleEndian()
 {
     short int number = 0x1;
-    char *numPtr = (char*)&number;
+    char *numPtr = reinterpret_cast<char*>(&number);
     return (numPtr[0] == 1);
 }
 
-byte_array process_last_chunk(const char *data, std::size_t length)
+byte_array process_last_chunk(const char *chunk, std::size_t chunk_byte_size, std::size_t all_data_byte_size)
 {
-    uint64_t bit_count = length * 8;
+    uint64_t bit_count = all_data_byte_size * 8;
 
-    if (data == nullptr) {
+    if (chunk == nullptr) {
         throw std::invalid_argument("process_last_chunk: nullptr passed");
     }
     
-    const std::size_t last_chunk_byte_size = length % (CHUNK_BIT_SIZE / 8);
+    const std::size_t last_chunk_byte_size = chunk_byte_size;
     const std::size_t chunk_count = bit_count / CHUNK_BIT_SIZE;
 
     byte_array array;
@@ -40,7 +40,7 @@ byte_array process_last_chunk(const char *data, std::size_t length)
     }
     array.data = std::make_unique<char[]>(array.length);
 
-    auto begin = data + CHUNK_BIT_SIZE / 8 * chunk_count;
+    auto begin = chunk;
 
     std::copy(begin, begin + last_chunk_byte_size, array.data.get());
     array.data.get()[last_chunk_byte_size] = 0b10000000;
@@ -87,13 +87,8 @@ uint32_t get_K_constant(std::size_t index)
     throw std::invalid_argument("K constant function invalid index: " + std::to_string(index));
 }
 
-byte_array encrypter::encrypt(const char* data, std::size_t length) const
+byte_array encrypter::encrypt(std::istream &stream) const
 {
-    const char* chunk = data;
-
-    std::size_t chunk_count = length * 8 / CHUNK_BIT_SIZE;
-    std::size_t position = 0;
-
     std::array<uint32_t, 5> H {
         0x67452301,
         0xEFCDAB89,
@@ -101,17 +96,21 @@ byte_array encrypter::encrypt(const char* data, std::size_t length) const
         0x10325476,
         0xC3D2E1F0
     };
-    
-    while (chunk_count > 0) {
-        auto temp_base = encrypt_chunk(chunk + position, H);
+
+    char chunk[CHUNK_BIT_SIZE / 8];
+    std::size_t byte_processed = 0;
+
+    while (!stream.read(chunk, CHUNK_BIT_SIZE / 8).eof()) {
+        std::size_t chunk_byte_size = stream.gcount();
+        byte_processed += chunk_byte_size;
+        auto temp_base = encrypt_chunk(chunk, H);
         for (std::size_t i = 0; i < H.size(); ++i) {
             H[i] += temp_base[i];
         }
-        position += CHUNK_BIT_SIZE / 8;
-        --chunk_count;
     }
-
-    auto last_chunk = process_last_chunk(data, length);
+    std::size_t last_chunk_size = stream.gcount();
+    byte_processed += last_chunk_size;
+    auto last_chunk = process_last_chunk(chunk, last_chunk_size, byte_processed);
 
     for (int i = 0; i < last_chunk.length * 8 / CHUNK_BIT_SIZE; ++i) {
         auto temp_base = encrypt_chunk(last_chunk.data.get() + i * CHUNK_BIT_SIZE / 8, H);

@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <cstddef>
+#include <istream>
 
 namespace stagdog
 {
@@ -18,13 +19,13 @@ struct byte_array
 class IEncrypter
 {
 public:
-    virtual byte_array encrypt(const char* data, std::size_t length) const = 0;
+    virtual byte_array encrypt(std::istream &stream) const = 0;
 };
 
 class IDecrypter
 {
 public:
-    virtual byte_array decrypt(const char* data, std::size_t length) const = 0;
+    virtual byte_array decrypt(std::istream &stream) const = 0;
 };
 
 }// namespace stagdog

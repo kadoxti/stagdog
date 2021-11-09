@@ -65,7 +65,7 @@ TEST_CASE("sha1 process last chunk", "[sha1]")
     std::fill(chunk.get(), chunk.get() + 512, FILLER);
 
     SECTION("nullptr chunk pointer") {
-        CHECK_THROWS_WITH(process_last_chunk(nullptr, 10), "process_last_chunk: nullptr passed");
+        CHECK_THROWS_WITH(process_last_chunk(nullptr, 10, 10), "process_last_chunk: nullptr passed");
     }
 
     auto content_check = [FILLER](char * data, std::size_t init_size, std::size_t chunk_size){
@@ -83,14 +83,14 @@ TEST_CASE("sha1 process last chunk", "[sha1]")
     };
 
     SECTION("last chunk size < 447 (55 bytes - 440 bits)") {
-        auto array = process_last_chunk(chunk.get(), 55);
+        auto array = process_last_chunk(chunk.get(), 55, 55);
         REQUIRE(array.data != nullptr);
         REQUIRE(array.length == 512/8);
         content_check(array.data.get(), 55, 512/8);
     }
 
     SECTION("chunk size > 447 (56 bytes - 448 bits)") {
-        auto array = process_last_chunk(chunk.get(), 56);
+        auto array = process_last_chunk(chunk.get(), 56, 56);
         REQUIRE(array.data != nullptr);
         REQUIRE(array.length == 1024/8);
         content_check(array.data.get(), 56, 1024/8);
@@ -98,7 +98,7 @@ TEST_CASE("sha1 process last chunk", "[sha1]")
 
     SECTION("rfc example") {
         char message[] = {0b01100001, 0b01100010, 0b01100011, 0b01100100, 0b01100101};
-        auto array = process_last_chunk(message, 5);
+        auto array = process_last_chunk(message, 5, 5);
         REQUIRE(array.data != nullptr);
         REQUIRE(array.length == 512/8);
 
@@ -158,8 +158,15 @@ TEST_CASE("sha1 some test examples", "[sha1]")
 {
     encrypter crypter;
     
-    CHECK(bitstring(crypter.encrypt("Sha", 3).data.get(), 20) ==  "1011101001111001101110101110101110011111000100001000100101101010010001101010111001110100011100010101001001110001101101111111010110000110111001110100011001000000");
-    CHECK(bitstring(crypter.encrypt("sha", 3).data.get(), 20) ==  "1101100011110100010110010000001100100000111000010011010000111010100100010101101101100011100101000001011100000110010100001010100011110011010111010110100100100110");
-    CHECK(bitstring(crypter.encrypt("The quick brown fox jumps over the lazy dog", 43).data.get(), 20) ==  "0010111111010100111000011100011001111010001011010010100011111100111011011000010010011110111000011011101101110110111001110011100100011011100100111110101100010010");
-    CHECK(bitstring(crypter.encrypt("В чащах юга жил бы цитрус? Да, но фальшивый экземпляр!", 96).data.get(), 20) ==  "1001111000110010001010010101111110000010001001011000000000111011101101101101010111111101111111001100000001100111010001100001011010100100010000010011110000011011");
+    auto stream = std::istringstream("Sha");
+    CHECK(bitstring(crypter.encrypt(stream).data.get(), 20) ==  "1011101001111001101110101110101110011111000100001000100101101010010001101010111001110100011100010101001001110001101101111111010110000110111001110100011001000000");
+    
+    stream = std::istringstream("sha");
+    CHECK(bitstring(crypter.encrypt(stream).data.get(), 20) ==  "1101100011110100010110010000001100100000111000010011010000111010100100010101101101100011100101000001011100000110010100001010100011110011010111010110100100100110");
+    
+    stream = std::istringstream("The quick brown fox jumps over the lazy dog");
+    CHECK(bitstring(crypter.encrypt(stream).data.get(), 20) ==  "0010111111010100111000011100011001111010001011010010100011111100111011011000010010011110111000011011101101110110111001110011100100011011100100111110101100010010");
+    
+    stream = std::istringstream("В чащах юга жил бы цитрус? Да, но фальшивый экземпляр!");
+    CHECK(bitstring(crypter.encrypt(stream).data.get(), 20) ==  "1001111000110010001010010101111110000010001001011000000000111011101101101101010111111101111111001100000001100111010001100001011010100100010000010011110000011011");
 }

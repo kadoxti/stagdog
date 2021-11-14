@@ -1,4 +1,4 @@
-// (c) 2021 Zaur Kadokhov (kadoxti.github.io)
+// (c) 2021 Zaur Kadokhti (kadoxti.github.io)
 // This code is licensed under MIT license (see LICENSE file for details)
 
 #pragma once

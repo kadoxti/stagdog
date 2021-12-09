@@ -4,6 +4,14 @@ project(stagdog LANGUAGES CXX)
 
 option(BUILD_DOCUMENTATION "Build documentation with Doxygen" ON)
 
+# clang format
+find_program(CLANG_FORMAT clang-format)
+if (CLANG_FORMAT)
+    exec_program(${CLANG_FORMAT} ${CMAKE_CURRENT_SOURCE_DIR} ARGS -i -style=file */*.cpp */*.h)
+else()
+    message(WARNING "Clang-format not found in system. Formatting sources is skipped!")
+endif()
+
 set (SOURCES 
     src/sha1.cpp)
 
